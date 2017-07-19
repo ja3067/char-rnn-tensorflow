@@ -1,14 +1,3 @@
-"""Simple, versatile LSTM model implemented in Tensorflow by Jacob Austin. 
-The model is partly adapted from the Google Udacity Deep Learning class. 
-
-The network should be run from the command line. Command line options can be 
-viewed using the -h handle, e.g. python LSTM.py -h. The default settings 
-may not be ideal for a given dataset, but at least for a demonstration, only 
-the data location needs to be specified. A larger validation set may also be 
-desirable for a large dataset. Adding more layers and more nodes will make the
-network more accurate, but will also slow training."""
-
-
 from __future__ import print_function
 import os
 import numpy as np
