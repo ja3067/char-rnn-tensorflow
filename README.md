@@ -7,4 +7,6 @@ This is a Tensorflow implementation of a character level LSTM network, inspired 
 
 The default settings may not be ideal for a given dataset, but at least for a demonstration, only the data location needs to be specified. A larger validation set may be desirable for a large dataset, and more layers and nodes will make the network more accurate, but will also slow training. 
 
+### Compatibility
+
 The model has only been tested on Python 3.5, but it should work on Python 2.7 (possibly with some minor tweaks). I will try my best to add documentation and expand the model as time permits.
