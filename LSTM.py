@@ -15,15 +15,15 @@ def is_valid_type(arg):
 
 parser = argparse.ArgumentParser(description="Simple, versatile LSTM model.")
 parser.add_argument("-i", dest="data", required=False, help="specify path to training data", metavar="DATA", type=is_valid_type, default='shakespeare.txt')
-parser.add_argument("-valid_size", dest="valid_size", required=False, help="size of validation set", metavar="VALID", type=int, default=1000)
+parser.add_argument("-valid_size", dest="valid_size", required=False, help="size of validation set", metavar="VALID", type=int, default=10000)
 parser.add_argument("-batch_size", dest="batch_size", required=False, help="batch size", metavar="BATCH", type=int, default=32)
-parser.add_argument("-num_unrollings", dest="num_unrollings", required=False, help="number of LSTM unrollings", metavar="UNROLLINGS", type=int, default=20)
-parser.add_argument("-num_nodes", dest="num_nodes", required=False, help="number of hidden nodes in each LSTM layer", metavar="NODES", type=int, default=128)
+parser.add_argument("-num_unrollings", dest="num_unrollings", required=False, help="number of LSTM unrollings", metavar="UNROLLINGS", type=int, default=20) # 20
+parser.add_argument("-num_nodes", dest="num_nodes", required=False, help="number of hidden nodes in each LSTM layer", metavar="NODES", type=int, default=512) # 512
 parser.add_argument("-num_layers", dest="num_layers", required=False, help="number of hidden layers in LSTM", metavar="LAYERS", type=int, default=2)
-parser.add_argument("-num_steps", dest="num_steps", required=False, help="number of iterations", metavar="ITER", type=int, default=30001)
+parser.add_argument("-num_steps", dest="num_steps", required=False, help="number of iterations", metavar="ITER", type=int, default=50001)
 parser.add_argument("-summary_frequency", dest="summary_frequency", required=False, help="how often to report loss", metavar="FREQ", type=int, default=500)
-parser.add_argument("-init_rate", dest="init_rate", required=False, help="initial learning rate", metavar="INIT", type=float, default=0.001)
-parser.add_argument("-final_rate", dest="final_rate", required=False, help="final learning rate", metavar="FINAL", type=float, default=0.0001)
+parser.add_argument("-init_rate", dest="init_rate", required=False, help="initial learning rate", metavar="INIT", type=float, default=0.001) # 0.001
+parser.add_argument("-decay_rate", dest="decay_rate", required=False, help="decay_rate", metavar="FINAL", type=float, default=0.95)
 
 args = parser.parse_args()
 
@@ -40,9 +40,9 @@ num_steps = args.num_steps
 summary_frequency = args.summary_frequency
 
 init_rate = args.init_rate
-final_rate = args.final_rate
+decay_rate = args.decay_rate
 
-learning_num_steps = 10000 # increase for larger models, lower learning rates, longer train times
+decay_steps = 10000 # increase for larger models, lower learning rates, longer train times
 
 valid_num_lines = 5 # increase to change number of sample lines displayed
 
@@ -65,7 +65,7 @@ reverse_chars = dict(zip(chars.values(), chars.keys()))
 print('Data size %d. Number of unique chars %d' % (len(text), len(chars)))
 
 try:
-    assert valid_size < len(chars)
+    assert valid_size < len(text)
 except AssertionError:
     print("Size of validation set is larger than size of dataset. Please choose a smaller value or provide a large dataset.")
 
@@ -189,41 +189,33 @@ def random_distribution():
 print("Initializing graph...")
 graph = tf.Graph()
 with graph.as_default():
+
     # Definition of the cell computation.
     def lstm_cell(i, o, state):
         # Input gate: input, previous output, and bias.
-        ix = tf.get_variable("ix", [vocabulary_size, num_nodes],
+        x = tf.get_variable("x", [vocabulary_size, 4 * num_nodes],
                              initializer=tf.truncated_normal_initializer(-0.1, 0.1, dtype=tf.float32))
-        im = tf.get_variable("im", [num_nodes, num_nodes],
+        m = tf.get_variable("im", [num_nodes, 4 * num_nodes],
                              initializer=tf.truncated_normal_initializer(-0.1, 0.1, dtype=tf.float32))
-        ib = tf.get_variable("ib", [1, num_nodes], initializer=tf.zeros_initializer())
-        # Forget gate: input, previous output, and bias.
-        fx = tf.get_variable("fx", [vocabulary_size, num_nodes],
-                             initializer=tf.truncated_normal_initializer(-0.1, 0.1, dtype=tf.float32))
-        fm = tf.get_variable("fm", [num_nodes, num_nodes],
-                             initializer=tf.truncated_normal_initializer(-0.1, 0.1, dtype=tf.float32))
+
+        ib = tf.get_variable("ib", [1, num_nodes], initializer=tf.zeros_initializer(dtype=tf.float32))
         fb = tf.get_variable("fb", [1, num_nodes], initializer=tf.zeros_initializer(dtype=tf.float32))
-        # Memory cell: input, state and bias.
-        cx = tf.get_variable("cx", [vocabulary_size, num_nodes],
-                             initializer=tf.truncated_normal_initializer(-0.1, 0.1, dtype=tf.float32))
-        cm = tf.get_variable("cm", [num_nodes, num_nodes],
-                             initializer=tf.truncated_normal_initializer(-0.1, 0.1, dtype=tf.float32))
         cb = tf.get_variable("cb", [1, num_nodes], initializer=tf.zeros_initializer(dtype=tf.float32))
-        # Output gate: input, previous output, and bias.
-        ox = tf.get_variable("ox", [vocabulary_size, num_nodes],
-                             initializer=tf.truncated_normal_initializer(-0.1, 0.1, dtype=tf.float32))
-        om = tf.get_variable("om", [num_nodes, num_nodes],
-                             initializer=tf.truncated_normal_initializer(-0.1, 0.1, dtype=tf.float32))
         ob = tf.get_variable("ob", [1, num_nodes], initializer=tf.zeros_initializer(dtype=tf.float32))
 
-        input_gate = tf.sigmoid(tf.matmul(i, ix) + tf.matmul(o, im) + ib)
-        forget_gate = tf.sigmoid(tf.matmul(i, fx) + tf.matmul(o, fm) + fb)
-        update = tf.matmul(i, cx) + tf.matmul(o, cm) + cb
+        xtemp = tf.matmul(i, x)
+        mtemp = tf.matmul(o, m)
+
+        ix, fx, cx, ox = tf.split(xtemp, 4, axis=1)
+        im, fm, cm, om = tf.split(mtemp, 4, axis=1)
+
+        input_gate = tf.sigmoid(ix + im + ib)
+        forget_gate = tf.sigmoid(fx + fm + fb)
+        update = cx + cm + cb
         state = forget_gate * state + input_gate * tf.tanh(update)
-        output_gate = tf.sigmoid(tf.matmul(i, ox) + tf.matmul(o, om) + ob)
+        output_gate = tf.sigmoid(ox + om + ob)
 
         return output_gate * tf.tanh(state), state
-
 
     # Input data.
 
@@ -268,9 +260,11 @@ with graph.as_default():
                         tf.nn.softmax_cross_entropy_with_logits(
                             labels=tf.concat(train_labels, 0), logits=logits))
 
+    saver = tf.train.Saver()
+
     # Optimizer.
     global_step = tf.Variable(0)
-    learning_rate = tf.train.exponential_decay(init_rate, global_step, learning_num_steps, final_rate, staircase=True)
+    learning_rate = tf.train.exponential_decay(init_rate, global_step, decay_steps, decay_rate, staircase=True)
     #optimizer = tf.train.GradientDescentOptimizer(learning_rate)
     optimizer = tf.train.RMSPropOptimizer(learning_rate)
     gradients, v = zip(*optimizer.compute_gradients(loss))
@@ -330,7 +324,7 @@ with graph.as_default():
 
 with tf.Session(graph=graph) as session:
     tf.global_variables_initializer().run()
-    print('Initialized')
+    print('Graph initialized')
     mean_loss = 0
     for step in range(num_steps):
         batches = train_batches.next()
@@ -353,7 +347,7 @@ with tf.Session(graph=graph) as session:
             if step % (summary_frequency * 10) == 0:
                 # Generate some samples.
                 print('=' * 80)
-                for _ in range(valid_num_lines): 
+                for _ in range(valid_num_lines):
                     feed = sample(random_distribution())
                     sentence = characters(feed)[0]
                     # print(sentence)
@@ -375,4 +369,8 @@ with tf.Session(graph=graph) as session:
                 valid_logprob = valid_logprob + logprob(predictions, b[1])
             print('Validation set perplexity: %.2f' % float(np.exp(
                 valid_logprob / valid_size)))
+
+            if step % 50000 == 0 or step == num_steps - 1:
+                save_path = saver.save(session, "saved_models/model{}.ckpt".format(step))
+                print("Model saved in file: %s" % save_path)
 
