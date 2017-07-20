@@ -1,6 +1,6 @@
 # char-rnn-tensorflow
 Multi-layer long short-term memory (LSTM) char-level neural network implemented in Tensorflow.
-
+         
 ## Usage
 
 This is a Tensorflow implementation of a character level LSTM network, inspired by Andrej Karpathy's char-rnn, and partly adapted from Google's Deep Learning Udacity course. The model is initialized to standard hyperparameters like learning rate, batch size, number of hidden nodes, and number of layers, but these can all be controlled using various command line arguments. To see a list of command line arguments, use the -h handle, e.g. python LSTM.py -h.
