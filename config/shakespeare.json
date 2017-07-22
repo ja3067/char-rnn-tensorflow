@@ -1,0 +1,1 @@
+{"valid_size": 1000, "save_path": "saved_models/shakespearemodel25000.ckpt", "batch_size": 50, "decay_rate": 0.95, "decay_steps": 5000, "summary_frequency": 500, "init_rate": 0.01, "num_steps": 50001, "num_nodes": 128, "data": "shakespeare.txt", "num_layers": 2, "num_unrollings": 50}
